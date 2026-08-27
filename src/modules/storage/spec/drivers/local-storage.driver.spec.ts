@@ -6,7 +6,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 
-import { LocalStorageDriver } from './local-storage.driver';
+import { LocalStorageDriver } from '../../drivers/local-storage.driver';
 
 jest.mock('fs/promises', () => ({ unlink: jest.fn() }));
 

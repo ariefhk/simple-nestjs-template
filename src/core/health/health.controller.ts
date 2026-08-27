@@ -9,7 +9,7 @@ import {
 } from '@nestjs/terminus';
 import type { Cache } from 'cache-manager';
 
-const REDIS_HEALTH_CHECK_KEY = '__health_check__';
+import { REDIS_HEALTH_CHECK_KEY } from './constants/health.constants';
 
 @Controller('health')
 export class HealthController {

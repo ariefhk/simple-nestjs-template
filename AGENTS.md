@@ -53,6 +53,15 @@ and prefer a scratch port for verification boots.
   everywhere else — don't read `process.env` directly outside that file.
 - After adding a new env var: add it to `envConfig()`, then to
   `.env.example`, `.env.dev`, and `.env.prod` (keep all three in sync).
+- **`src/common/logger/winston.config.ts`'s `setupLogger` reads `APP_NAME`
+  and `LOG_PATH` via `ConfigService.getOrThrow(...)`** (the raw env var
+  names, not `envConfig()`'s camelCase keys) — it throws if `.env.dev`
+  doesn't exist to provide them. That means `main.ts`'s real `bootstrap()`
+  cannot start in a fresh clone or CI unless `.env.dev` (or `.env.prod`) is
+  present, since it's gitignored. This is a known gap, not something to
+  silently work around — the e2e test helper (`test/utils/create-test-app.ts`)
+  sidesteps it by not calling `setupLogger` at all, which is fine for tests
+  but doesn't fix running the app for real without a local env file.
 
 ## Architecture conventions
 
@@ -81,7 +90,8 @@ first, shutdown hooks/listen last).
 
 **Module folder shape** (see `src/modules/cat/` or `src/modules/storage/`
 as the template):
-```
+
+```text
 modules/<name>/
   <name>.module.ts
   <name>.controller.ts
@@ -90,11 +100,14 @@ modules/<name>/
   entities/
   interfaces/
   constants/
+  spec/
 ```
+
 Don't inline DTOs/interfaces/constants in the service or controller file —
 each gets its own file in the matching subfolder, even for a single-field
 interface or a one-line constant. Shared (not feature-specific) interfaces
-go in `src/common/interfaces/`.
+go in `src/common/interfaces/`. Tests live under `spec/`, not beside the
+source file — see the next section.
 
 **Local file storage**: the local disk root is the `storage/` folder at the
 repo root (config key `storageLocalDir`, default `storage`) — not `uploads`.
@@ -109,18 +122,25 @@ future work.
 ## Testing new modules
 
 `CatModule` and `StorageModule` are the reference examples for test
-coverage — read their `*.spec.ts` files before writing new ones rather than
-inventing a pattern. When adding a new module, add a `*.spec.ts` next to
-each service/controller it introduces (jest's `rootDir` is `src`,
-`testRegex` is `.*\.spec\.ts$`, so specs live beside the code they test, not
-in a separate tree):
+coverage — read their `spec/` folders before writing new ones rather than
+inventing a pattern. Tests live in a `spec/` subfolder inside the module,
+**mirroring the module's own subfolder layout** (so a spec for
+`drivers/local-storage.driver.ts` goes in `spec/drivers/local-storage.driver.spec.ts`,
+not flat in `spec/`) — this keeps the module's top level to source files
+only. jest's `rootDir` is `src` and `testRegex` is `.*\.spec\.ts$`, which
+matches any path depth, so this works without config changes:
 
 ```text
 modules/<name>/
   <name>.service.ts
-  <name>.service.spec.ts
   <name>.controller.ts
-  <name>.controller.spec.ts
+  drivers/
+    some.driver.ts
+  spec/
+    <name>.service.spec.ts
+    <name>.controller.spec.ts
+    drivers/
+      some.driver.spec.ts
 ```
 
 Conventions established so far (`src/modules/cat/`, `src/modules/storage/`):
@@ -133,7 +153,7 @@ Conventions established so far (`src/modules/cat/`, `src/modules/storage/`):
   module needs a mock provider for *that* dependency too, even though the
   test never calls the interceptor directly — `Test.createTestingModule`
   instantiates class-level interceptors during `.compile()`. See
-  `cat.controller.spec.ts`, which mocks `CACHE_MANAGER` for exactly this
+  `spec/cat.controller.spec.ts`, which mocks `CACHE_MANAGER` for exactly this
   reason (`findAll()` is cached).
 - Don't cast a plain `{ upload: jest.fn(), ... }` mock object to the real
   class type (e.g. `as unknown as LocalStorageDriver`) — referencing a
@@ -147,12 +167,50 @@ Conventions established so far (`src/modules/cat/`, `src/modules/storage/`):
 
 Run `pnpm test` before considering a module done.
 
-The one existing e2e test (`test/app.e2e-spec.ts`) is stale and currently
-fails — it expects `GET /` to return `"Hello World!"`, but there's no root
-controller anymore and the `v1` global prefix means that path wouldn't
-resolve even if there were. Don't treat it as a working reference; either
-fix it (e.g. point it at `/v1/health`) or replace it when e2e coverage
-actually matters for the task at hand.
+### e2e tests (`test/`)
+
+`test/health.e2e-spec.ts`, `test/cat.e2e-spec.ts`, and
+`test/storage.e2e-spec.ts` are the reference examples — one per
+domain/infra surface, each boots the real `AppModule` through
+`test/utils/create-test-app.ts` and drives it with `supertest`. Add a new
+`test/<name>.e2e-spec.ts` when a module's HTTP surface needs
+end-to-end coverage (routing + validation + interceptors + filters all
+wired together), not as a default alongside every unit spec — unit tests in
+`spec/` are cheaper and should cover the logic itself.
+
+- `create-test-app.ts` intentionally does **not** call `setupLogger` (avoids
+  writing log files during test runs, and sidesteps `winston.config.ts`'s
+  `getOrThrow('APP_NAME')`/`getOrThrow('LOG_PATH')`, which would throw in a
+  fresh clone/CI without a local `.env.dev`) or `setupShutdownHooks`/
+  `startServer` (e2e tests hit the app in-process via `app.getHttpServer()`,
+  they never bind a real port). Every other bootstrap step — global prefix,
+  helmet, cors, static assets, validation pipe, interceptors, filters,
+  swagger — is applied, so the tests exercise the same wiring as production.
+- Type `app` as `INestApplication<App>` (`App` from `supertest/types`) and
+  cast `response.body` to the real shape (e.g. the shared
+  `Response<T>` interceptor interface for success responses) — don't leave
+  it as `any`, `@typescript-eslint/no-unsafe-*` will flag every property
+  access on it.
+- **Import `supertest` as `import request = require('supertest')`**, not
+  `import * as request from 'supertest'`. Its `.d.ts` uses `export =`, so a
+  namespace import types as a non-callable module-namespace object (a real
+  `tsc`/IDE error — `This expression is not callable`) even though it
+  happens to work at runtime under `commonjs` output. Same pattern already
+  used for `winston-daily-rotate-file` in `winston.config.ts`; needs the
+  matching `// eslint-disable-next-line @typescript-eslint/no-require-imports`.
+- **The `/v1/health` endpoint's `memory_heap` and `memory_rss` indicators
+  are not safe to assert on in e2e tests** — a jest/ts-jest process's own
+  memory footprint can trip `health.controller.ts`'s fixed thresholds even
+  when the app is otherwise fine, and confirmed flaky in practice during
+  development (RSS tripped on one run, heap on another). Assert only on the
+  `redis` indicator (a real cache round-trip, unaffected by process memory)
+  and tolerate either `200` or `503` as the overall status code.
+- `/v1/cats/fact` (a real call to `catfact.ninja`) is deliberately **not**
+  covered by the Cat e2e test, to keep e2e coverage deterministic and
+  offline — `CatFactService`'s unit spec already covers its success/failure
+  branches against a mocked `HttpService`.
+- Any file an e2e test uploads to `storage/` must be deleted by the test
+  itself (see `storage.e2e-spec.ts`) — nothing else cleans that folder up.
 
 ## Verifying changes
 

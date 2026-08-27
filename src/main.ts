@@ -1,6 +1,5 @@
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
-
 import { AppModule } from './app.module';
 import {
   setupShutdownHooks,
@@ -13,7 +12,7 @@ import { setupCors } from './common/middlewares/cors.config';
 import { setupGlobalPrefix } from './common/middlewares/global-prefix.config';
 import { setupHelmet } from './common/middlewares/helmet.config';
 import { setupStaticAssets } from './common/middlewares/static-assets.config';
-import { setupGlobalPipes } from './common/pipes/validation.config';
+import { setupGlobalPipes } from './common/pipes/global-pipe.config';
 import { setupSwagger } from './common/swagger/swagger.config';
 
 async function bootstrap() {

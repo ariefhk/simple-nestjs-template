@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Readable } from 'stream';
 
-import { StoredFile } from './interfaces/storage-driver.interface';
-import { StorageController } from './storage.controller';
-import { StorageService } from './storage.service';
+import { StoredFile } from '../interfaces/storage-driver.interface';
+import { StorageController } from '../storage.controller';
+import { StorageService } from '../storage.service';
 
 describe('StorageController', () => {
   let controller: StorageController;

@@ -2,8 +2,8 @@ import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Readable } from 'stream';
 
-import { LocalStorageDriver } from './drivers/local-storage.driver';
-import { StorageService } from './storage.service';
+import { LocalStorageDriver } from '../drivers/local-storage.driver';
+import { StorageService } from '../storage.service';
 
 describe('StorageService', () => {
   const buildFile = (): Express.Multer.File => ({

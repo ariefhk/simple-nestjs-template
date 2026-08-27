@@ -31,4 +31,12 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-argument': 'warn',
     },
   },
+  {
+    files: ['test/**/*.ts'],
+    rules: {
+      // supertest's .d.ts uses `export =`, so every e2e spec needs
+      // `import request = require('supertest')` to type-check as callable.
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
 );

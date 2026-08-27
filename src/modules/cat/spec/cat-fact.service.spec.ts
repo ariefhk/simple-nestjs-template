@@ -4,7 +4,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AxiosResponse } from 'axios';
 import { of, throwError } from 'rxjs';
 
-import { CatFactService } from './cat-fact.service';
+import { CatFactService } from '../cat-fact.service';
 
 describe('CatFactService', () => {
   let service: CatFactService;

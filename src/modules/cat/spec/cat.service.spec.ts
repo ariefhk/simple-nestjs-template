@@ -2,8 +2,8 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
-import { CATS_CACHE_KEY } from './constants/cat.constants';
-import { CatService } from './cat.service';
+import { CatService } from '../cat.service';
+import { CATS_CACHE_KEY } from '../constants/cat.constants';
 
 describe('CatService', () => {
   let service: CatService;

@@ -1,10 +1,10 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Test, TestingModule } from '@nestjs/testing';
 
-import { CatFactService } from './cat-fact.service';
-import { CatController } from './cat.controller';
-import { CatService } from './cat.service';
-import { Cat } from './entities/cat.entity';
+import { CatFactService } from '../cat-fact.service';
+import { CatController } from '../cat.controller';
+import { CatService } from '../cat.service';
+import { Cat } from '../entities/cat.entity';
 
 describe('CatController', () => {
   let controller: CatController;
